@@ -1,0 +1,11 @@
+Alarm list report. 
+
+lists open, closed or both alarms.
+columns : 
+
+date
+status
+description (AV directive or Pulse info)
+src hostname (ip) or ip
+dst hostnmae (ip) or ip
+risk
