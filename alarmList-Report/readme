@@ -1,11 +1,18 @@
 Alarm list report. 
 
 lists open, closed or both alarms.
-columns : 
 
+
+columns : 
 date
 status
 description (AV directive or Pulse info)
 src hostname (ip) or ip
 dst hostnmae (ip) or ip
 risk
+
+to deploy: 
+
+# cat alarmListReportModule.sql | ossim-db
+# cp AlarmList.php /usr/share/ossim/www/reports/alarm/
+
