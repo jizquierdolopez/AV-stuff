@@ -1,4 +1,4 @@
 # AV-stuff
 files and files 
 
-Just for no lose files and stuf
+Just for don't lose files and stuff
