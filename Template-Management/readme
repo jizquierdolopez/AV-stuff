@@ -1,6 +1,9 @@
-Export template info from ossim-db to .sql file to be imported in other system.
+Export template info from ossim-db to .sql file to be imported in a remote system.
+
+
 
 /// TODO 
 
 playbook to import template in target system
 review sql 
+name .sql file with date and templatename info
