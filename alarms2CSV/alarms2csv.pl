@@ -1,5 +1,7 @@
 #!/usr/bin/perl
 use DBI();
+use Date::Format;
+$path = "/tmp/";
 
 #Ripped from ossim-db
 my $user = `grep ^user= /etc/ossim/ossim_setup.conf | cut -f 2 -d "=" | sed '/^\$/d'`;
@@ -10,7 +12,7 @@ chomp($user);chomp($pass);
 my $dbh = DBI->connect("DBI:mysql:database=alienvault;host=127.0.0.1",$user, $pass, {'RaiseError' => 1});
 
 
-$fname = 'openalarms.csv';
+$fname = $path.'openalarms-'.time2str ("%y%m%d%H%M%S", time).'.csv';
 open ($file, '>', $fname) or die " >>>> Could not open file '$fname' $!";
 
 #open alarms
@@ -29,7 +31,6 @@ while (my $res = $sth->fetchrow_hashref()) {
     $res->{'alname'} =~ s/directive_event: //;
     print $file '"'.$res->{"altime"} . '","' . $res->{"alname"} . '","' . $srcip . '","' . $dstip . '","' . $res->{"alrisk"}. '","' . $res->{"catname"}.'","' . $res->{"catsub"}.'"'." \n";
 }
-
 
 close $file;
 
