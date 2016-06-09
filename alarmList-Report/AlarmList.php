@@ -33,7 +33,7 @@ $date_from_sql = "'".$date_from." 00:00:00'";
 $date_to_sql = "'".$date_to." 23:59:59'";
 $datefilter = "AND (al.timestamp BETWEEN $date_from_sql AND $date_to_sql)";
 
-$ctx = $dDB['ctx'];
+$filterctx = $dDB['ctx'];
 $target = "ip_dst";
 $report_type="alarm";
 $close = ($dDBdata['close']) ? "status = 'closed'" : "";
@@ -57,140 +57,159 @@ $alarmstotal = 0;
 $title = _("Alarms List");
 $rtitle = _($dDBdata['srtype'])." - ".$title;
 
-if (!Session::logcheck_bool("analysis-menu", "ReportsAlarmReport")) {
-	?>
+// queries list 
+$queries = explode(";",$dDBdata['force_sql']);
+$queries[0] = $queries[0] . " " . $where . " " . $datefilter . " " . $order;
 
-    <table align="center" cellpadding="0" cellspacing="0" class="table1 noborder">
-        <tr><td class="headerpr"><?php echo $rtitle ?></td></tr>
-        <tr><td class="nobborder"><?php Session::unallowed_section(null, false, "analysis-menu", "ReportsAlarmReport"); ?></td></tr>
-    </table>
-<?php
-} else {
+// Db handler
+$db     = new ossim_db();
+$dbconn = $db->connect();
+$rsp = $dbconn->Execute($queries[0]);
+$alarms = array();
 
+// GET ALARMS
+while (!$rsp->EOF) 
+{
+
+    $alarmstotal ++;
+    $myrow = $rsp->fields;      
+
+    // var setup
+    $alarm = array();
+    $alarm['date'] = $myrow['altime'];
+    $alarm['name'] = str_replace("directive_event: ", "", $myrow['alname']);
+    $alarm['srcip'] = ($myrow['srcname'] != '') ? $myrow['srcname']." (".$myrow['srcip'].")" : $myrow['srcip'];
+    $alarm['dstip'] = ($myrow['dstname'] != '') ? $myrow['dstname']." (".$myrow['dstip'].")" : $myrow['dstip'];
+    $alarm['risk'] = $myrow['alrisk'];
+    $alarm['cat'] = $myrow['catname'];
+    $alarm['sub'] = $myrow['catsub'];
+    $alarm['status'] = $myrow['status'];
+    $alarm['ctx'] = $myrow['entname'];
+
+    // PULSE INFO
+    $alarm['pulsename'] = "";
+    if ($myrow['pulse_id'] != "") 
+    {
+        $otx   = new Otx();
+        $pulse = $otx->get_pulse_detail(strtolower($myrow['pulse_id']), TRUE);
+        if (!empty($pulse['name']))                        
+        {
+            $alarm['pulsename'] = Util::htmlentities(trim($pulse['name']), ENT_NOQUOTES);
+        }
+    }
+
+    $alarms[] = $alarm;    
+    $rsp->MoveNext();
+
+}
+
+if ($_GET['pdf'] == 'TRUE') {
+    // PDF STUFF
     $htmlPdfReport->setBookmark(_($dDBdata['srtype'].' - '.$dDBdata['srname']));
-
-
-    // queries list 
-    $queries = explode(";",$dDBdata['force_sql']);
-    $queries[0] = $queries[0] . " " . $where . " " . $datefilter . " " . $order;
-
-    // Db handler
-    $db     = new ossim_db();
-    $dbconn = $db->connect();
-    $rsp = $dbconn->Execute($queries[0]);
-
 
     // PDF TITLE
     $htmlPdfReport->set($htmlPdfReport->newTitle($rtitle,$date_from,$date_to,$dDBdata["notes"]));
-        
-    // HTML TITLE
-    ?>
-    <table align="center" cellpadding="0" cellspacing="0" class="table1 noborder">
-        <tr><td class="headerpr">Report - <?=$rtitle ?> - STATUS -> <?=$status?></td></tr>
-    </table>
- 
-    <?// PDF ALARM TABLE HEADER?>
-    <?$htmlPdfReport->set('
+
+    // PDF ALARM TABLE HEADER
+
+    $htmlPdfReport->set('
     <table align="center" cellpadding="0" cellspacing="0" class="table1 noborder">
         <tr>
             <th class="headerpr">Date</th>
             <th class="headerpr">Status</th>
             <th class="headerpr">Name</th>
-            <th class="headerpr">Soruce</th>
+            <th class="headerpr">Source</th>
             <th class="headerpr">Destination</th>
             <th class="headerpr">Risk</th>
         </tr>
 
     ');
 
+    // PDF ALARM TABLE BODY
+    foreach ($alarms as $alarm) 
+    {
 
+    $htmlPdfReport->set('
+        <tr>
+            <td style="width:35mm;" class="nobborder">'.$alarm['date'].'</td>
+            <td style="width:15mm;" class="nobborder">'.$alarm['status'].'</td>
+            <td style="width:60mm;" class="nobborder">'.$alarm['ctx'].'<br /><b>'.$alarm['name'].$alarm['pulsename'].'</b><br/>'.$alarm['cat'].' -> '.$alarm['sub'].'</td>
+            <td style="width:30mm;" class="nobborder">'.$alarm['srcip'].'</td>
+            <td style="width:30mm;" class="nobborder">'.$alarm['dstip'].'</td>
+            <td style="width:5mm;" class="nobborder">'.$alarm['risk'].'</td>
+        </tr>
+    ');
+    }
+
+    $htmlPdfReport->set('
+        </table>
+        <br /><br /><br /><br />
+        <div class="systemdebug">[ '._("Alarms total").' '.$alarmstotal.' ]</div>
+    ');
+}
+
+if (!Session::logcheck_bool("analysis-menu", "ReportsAlarmReport")) {
+
+?>
+
+    <table align="center" cellpadding="0" cellspacing="0" class="table1 noborder">
+        <tr><td class="headerpr"><? echo $rtitle ?></td></tr>
+        <tr><td class="nobborder"><? Session::unallowed_section(null, false, "analysis-menu", "ReportsAlarmReport"); ?></td></tr>
+    </table>
+
+<?
+
+} else {
+    // HTML TITLE
+
+
+if ($_GET['pdf'] != 'TRUE'  ) {
+?>
+    <table align="center" cellpadding="0" cellspacing="0" class="table1 noborder">
+        <tr><td class="headerpr">Report - <?=$rtitle ?> - STATUS -> <?=$status?></td></tr>
+    </table>
+ 
+<?
     // HTML ALARM TABLE HEADER
 ?>
+
     <table align="center" cellpadding="0" cellspacing="0" class="table1 noborder">
         <tr>
             <th class="headerpr">Date</td>
             <th class="headerpr">Status</td>
             <th class="headerpr">Name</td>
-            <th class="headerpr">Soruce</td>
+            <th class="headerpr">Source</td>
             <th class="headerpr">Destination</td>
             <th class="headerpr">Risk</td>
         </tr>
 
-    <? while (!$rsp->EOF) 
+<?  
+    // ALARM TABLE BODY
+
+    foreach ($alarms as $alarm) 
     {
-        $alarmstotal ++;
-        $myrow = $rsp->fields;      
+?>
 
-        // var setup
-
-        $date = $myrow['altime'];
-        $name = str_replace("directive_event: ", "", $myrow['alname']);
-        $srcip = ($myrow['srcname'] != '') ? $myrow['srcname']." (".$myrow['srcip'].")" : $myrow['srcip'];
-        $dstip = ($myrow['dstname'] != '') ? $myrow['dstname']." (".$myrow['dstip'].")" : $myrow['dstip'];
-        $risk = $myrow['alrisk'];
-        $cat = $myrow['catname'];
-        $sub = $myrow['catsub'];
-        $alstatus = $myrow['status'];
-
-        // PULSE INFO
-        $pulsename = "";
-        if ($myrow['pulse_id'] != "") 
-        {
-            $otx   = new Otx();
-            $pulse = $otx->get_pulse_detail(strtolower($myrow['pulse_id']), TRUE);
-            if (!empty($pulse['name']))                        
-            {
-                $pulsename = Util::htmlentities(trim($pulse['name']), ENT_NOQUOTES);
-            }
-        }
-
-        // ALARM TABLE BODY
-    ?>
         <tr>
-            <td class="nobborder"><?=$date?></td>
-            <td class="nobborder"><?=$alstatus?></td>
+            <td class="nobborder"><?=$alarm['date']?></td>
+            <td class="nobborder"><?=$alarm['status']?></td>
  
-            <td class="nobborder"><b><?=$name?><?=$pulsename?></b><br/><?=$cat?> -> <?=$sub?></td>
-            <td class="nobborder"><?=$srcip?></td>
-            <td class="nobborder"><?=$dstip?></td>
-            <td class="nobborder"><?=$risk?></td>
+            <td class="nobborder"><?=$alarm['ctx']?><br/><b><?=$alarm['name']?><?=$alarm['pulsename']?></b><br/><?=$alarm['cat']?> -> <?=$alarm['sub']?></td>
+            <td class="nobborder"><?=$alarm['srcip']?></td>
+            <td class="nobborder"><?=$alarm['dstip']?></td>
+            <td class="nobborder"><?=$alarm['risk']?></td>
         </tr>
 
-        <?
-        // PDF ALARM TABLE BODY
-        $htmlPdfReport->set('
-            <tr>
-                <td style="width:35mm;" class="nobborder">'.$date.'</td>
-                <td style="width:15mm;" class="nobborder">'.$alstatus.'</td>
-                <td style="width:60mm;" class="nobborder"><b>'.$name.$pulsename.'</b><br/>'.$cat.' -> '.$sub.'</td>
-                <td style="width:30mm;" class="nobborder">'.$srcip.'</td>
-                <td style="width:30mm;" class="nobborder">'.$dstip.'</td>
-                <td style="width:5mm;" class="nobborder">'.$risk.'</td>
-            </tr>
-        ');
-
-
-        $rsp->MoveNext();
-
+<?
+    }
 
     // TABLE END
-    }?>
+?>
 
     </table>
     <br /><br /><br /><br />
-
-    <?$htmlPdfReport->set('
-        </table>
-        <br /><br /><br /><br />
-        <div class="systemdebug">[ '._("Alarms total").' '.$alarmstotal.' ]</div>
-    ');
-
+    <div class='systemdebug'><?php echo '[ '._('Alarms total ').' '.$alarmstotal.' ]'?></div>
+<?
+    }
 }
-    ?>
-
-
-
-<div class='systemdebug'><?php echo '[ '._('Alarms total ').' '.$alarmstotal.' ]'?></div>
-
-
-
+?>
