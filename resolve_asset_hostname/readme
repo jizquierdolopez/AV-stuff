@@ -1,0 +1,10 @@
+
+usage: 
+
+alienvault-api resolveAssetHostname [sensorIP sensorIP ...]
+
+This API module will read assets from specified sensors. no sensors on args mwans all sensors
+If asset hostname is default one 'HOST-\d+-\d+\d+-\d+ will connect to asset sensor, and will use nslookup to resolve asset ip. 
+If there is a hostname for this asset will update asset details on db. 
+
+drop resolveAssetHostname on /usr/share/python/alienvault-api-core/bin
