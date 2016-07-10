@@ -1,10 +1,6 @@
 #!/usr/share/python/alienvault-api-core/bin/python
 # -*- coding: utf-8 -*-
-#
-#  License:
-#
-#  Copyright (c) 2013 AlienVault
-#  All rights reserved.
+# @jai
 #
 
 import db
