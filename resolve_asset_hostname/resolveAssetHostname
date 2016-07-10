@@ -1,0 +1,110 @@
+#!/usr/share/python/alienvault-api-core/bin/python
+# -*- coding: utf-8 -*-
+#
+#  License:
+#
+#  Copyright (c) 2013 AlienVault
+#  All rights reserved.
+#
+
+import db
+import api_log
+import re
+
+from ansiblemethods.ansiblemanager import Ansible
+from optparse import OptionParser
+from sqlalchemy.orm import sessionmaker, scoped_session
+
+ansible = Ansible()
+
+
+def get_sensor_list():
+    parser = OptionParser()
+
+    (options, sensors) = parser.parse_args()
+
+    return (sensors)
+
+def get_all_assets_by(sensors):
+    
+    where = ""
+    if len(sensors):
+        where = " and ( sen.ip = '' " 
+        for sensor in sensors:
+            where = where + str(" OR sen.ip = inet6_aton('%s')" % sensor)
+        where = where + ")"
+
+    # Query
+    query = ("select h.hostname,h.fqdns,inet6_ntoa(i.ip) as ip,hex(i.host_id) as id, hex(s.sensor_id) as sensor_id,  inet6_ntoa(sen.ip) as sensor_ip from host h, host_ip i, host_sensor_reference s, sensor sen WHERE h.id = i.host_id and h.id = s.host_id and s.sensor_id = sen.id %s") % where    
+
+    eng = db.get_engine()
+    ss = scoped_session(sessionmaker(bind=eng))
+    s = ss()
+    
+    try:
+        assets = s.execute(query)
+    except Exception as err_detail:
+        api_log.error("There was a problem while updating hostname: %s" % str(err_detail))
+        return str(err_detail), assets
+    return True, assets
+
+def update_asset_on_db (asset_id, asset_hostname, asset_fqdns):
+    print "Update asset hostname (%s) and fqdns (%s) for asset id - %s" % (asset_hostname, asset_fqdns, asset_id)
+    # Query
+    query = ("UPDATE host SET hostname = '%s', fqdns = '%s' WHERE id = unhex('%s')") % (asset_hostname, asset_fqdns, asset_id)
+    
+    eng = db.get_engine()
+    ss = scoped_session(sessionmaker(bind=eng))
+    s = ss()
+    
+    try:
+        result = s.execute(query)
+    except Exception as err_detail:
+        api_log.error("There was a problem while updating asset hostname and fqdns: %s" % str(err_detail))
+        return (str(err_detail), hosts)
+    return (True, result)
+
+def get_asset_hostname_and_fqdns_by_ip(ip, sensor_ip):
+
+    try:
+        command = """executable=/bin/bash nslookup %s | grep "name =" | awk '{print $4}'""" % ip
+        response = ansible.run_module(host_list=[sensor_ip], module="shell", args=command, ans_remote_user="avapi")
+        response = response['contacted'][sensor_ip]['stdout']
+        hostname = re.search('([^\.]+)\.',response).group(1)
+        fqdns = response
+    except Exception, e:
+        return ('', str(e))
+        api_log.error("Ansible Error: get_host_by_ip %s" % str(e))
+    return (hostname, fqdns)
+
+
+def find_hostname_of(asset):
+
+    (new_hostname, new_fqdns) = get_asset_hostname_and_fqdns_by_ip(asset.ip, asset.sensor_ip)
+    if new_hostname:
+        update_asset_on_db(asset.id,new_hostname,new_fqdns)
+    else:
+        print "Name not found. Moving on.";
+
+
+def does_asset_need_a_hostname(asset):
+
+    if ("Host-" in asset.hostname):
+        print "Default Hostname ... Looking up hostname for %s on sensor %s" % (asset.ip, asset.sensor_ip)
+        find_hostname_of(asset)
+
+def main():
+
+    sensors = get_sensor_list()
+
+    (err, assets) = get_all_assets_by(sensors)
+
+    for asset in assets:
+        does_asset_need_a_hostname(asset)
+        
+    
+if __name__ == "__main__":
+
+    main()
+
+    exit(0)
